@@ -57,11 +57,11 @@ UIs: Spark Master em `localhost:8080`, console MinIO em `localhost:9001`.
 
 ## Roadmap
 
-- [x] Semana 1 — Ambiente Docker + ingestão BCB SGS → bronze
-- [ ] Semana 2 — Comex Stat no bronze (dado grande de verdade)
-- [ ] Semana 3 — Bronze → Silver com Delta (`MERGE` idempotente)
-- [ ] Semana 4 — Silver → Gold (joins e agregações analíticas)
-- [ ] Semana 5 — Orquestração com Airflow + backfill
-- [ ] Semana 6 — Tuning: AQE, skew, broadcast, números antes/depois
-- [ ] Semana 7 — Testes (pytest + chispa) e data quality gates
-- [ ] Semana 8 — Dashboard + camada Databricks + documentação final
+- [x] Passo 1 — Ambiente Docker + ingestão BCB SGS → bronze
+- [ ] Passo 2 — Comex Stat no bronze (dado grande de verdade)
+- [ ] Passo 3 — Bronze → Silver com Delta (`MERGE` idempotente)
+- [ ] Passo 4 — Silver → Gold (joins e agregações analíticas)
+- [ ] Passo 5 — Orquestração com Airflow + backfill
+- [ ] Passo 6 — Tuning: AQE, skew, broadcast, números antes/depois
+- [ ] Passo 7 — Testes (pytest + chispa) e data quality gates
+- [ ] Passo 8 — Dashboard + camada Databricks + documentação final
