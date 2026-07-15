@@ -59,7 +59,7 @@ UIs: Spark Master em `localhost:8080`, console MinIO em `localhost:9001`.
 
 - [x] Passo 1 — Ambiente Docker + ingestão BCB SGS → bronze
 - [x] Passo 2 — Comex Stat no bronze (dado grande de verdade)
-- [ ] Passo 3 — Bronze → Silver com Delta (`MERGE` idempotente)
+- [x] Passo 3 — Bronze → Silver com Delta (`MERGE` idempotente)
 - [ ] Passo 4 — Silver → Gold (joins e agregações analíticas)
 - [ ] Passo 5 — Orquestração com Airflow + backfill
 - [ ] Passo 6 — Tuning: AQE, skew, broadcast, números antes/depois
