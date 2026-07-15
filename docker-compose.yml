@@ -1,0 +1,97 @@
+# Lakehouse Economia BR - Ambiente local
+
+# Serviços:
+#   minio           "S3 local". Guarda as camadas bronze, silver e gold
+#   minio-init      job que roda UMA vez e cria o bucket
+#   spark-master    coordenador do cluster spark (UI em localhost:8080)
+#   spark-worker    executor, escala com scala com: docker compose up --scale spark-worker=2
+#   app             aplicação principal (driver do spark)
+
+# airflow vai entrar depois, um serviço por vez pra nao sofrer
+
+services:
+
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000" # API S3 (e o que o Spark usa)
+      - "9001:9001" # Console web (pra navegar nos arquivos)
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio-data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+  
+  # Job descartavel: espera o MinIO subir e cria o bucket do lakehouse
+  # Padrao comum: infra-as-code minima, ninguem cria bucket na mão
+  
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 $${MINIO_ROOT_USER} $${MINIO_ROOT_PASSWORD} &&
+      mc mb --ignore-existing local/lakehouse &&
+      echo 'bucket lakehouse ok'
+      "
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+
+  spark-master:
+    image: bitnami/spark:3.5.1
+    container_name: spark-master
+    environment:
+      - SPARK_MODE=master
+    ports:
+      - "8080:8080" # Spark UI
+      - "7077:7077" # porta que os workers e driver usam prafalar com o master
+  
+  spark-worker:
+    image: bitnami/spark:3.5.1
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark-master:7077
+      # Limites propositalmente apertados quero ver o spark SOFRER
+      # pra aprender a otimizar, se tiver maquina forte pode aumentar
+      - SPARK_WORKER_MEMORY=2G
+      - SPARK_WORKER_CORES=2
+    depends_on:
+      - spark-master
+
+  # Conteiner de desenvolvimento: python + java + libs
+  # e daqui que o driver do spark vai rodar (client mode)
+  app:
+    build: .
+    container_name: app
+    environment:
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      LAKEHOUSE_BUCKET: lakehouse
+      # se quiser rodar no cluster tem que trocar pra spark://spark-master:7077
+      # ou entao deixe local[*] pra rodar no proprio conteiner (client mode)
+      SPARK_MASTER_URL: ${SPARK_MASTER_URL:-local[*]}
+    volumes:
+      - ./src:/opt/app/src
+      - ./tests:/opt/app/tests
+      - ivy-cache:/opt/ivy
+    depends_on:
+      - minio
+      - spark-master
+    
+    #mantem o container vivo pra entrar com docker compose exec
+    command: sleep infinity
+
+volumes:
+  minio-data:
+  ivy-cache:
