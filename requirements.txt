@@ -1,0 +1,12 @@
+# Versoes pinadas de proposito: pyspark e delta-spark precisam ser compativeis
+# entre si (matriz de compatibilidade na doc do Delta). Nao atualize um sem o outro.
+pyspark==3.5.1
+delta-spark==3.2.0
+
+# Ingestao (bronze) - dado pequeno via API nao precisa de Spark
+requests==2.32.3
+boto3==1.34.144
+
+# Testes
+pytest==8.2.2
+chispa==0.10.1
