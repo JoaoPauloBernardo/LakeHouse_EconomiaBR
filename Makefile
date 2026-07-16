@@ -1,12 +1,13 @@
 # Comandos do dia a dia. `make help` lista tudo.
 
-.PHONY: help up down ps logs ingest-bcb smoke shell spark-ui minio-ui
+.PHONY: help up down ps logs ingest-bcb ingest-ibge smoke shell spark-ui minio-ui
 
 help:
 	@echo "make up          - sobe o ambiente (minio + spark + app)"
 	@echo "make down        - derruba tudo"
 	@echo "make ps          - status dos containers"
 	@echo "make ingest-bcb  - roda ingestao BCB SGS -> bronze"
+	@echo "make ingest-ibge - roda ingestao IBGE SIDRA -> bronze"
 	@echo "make smoke       - smoke test (Spark lendo o bronze)"
 	@echo "make shell       - abre um bash dentro do container app"
 	@echo "make spark-ui    - lembra a URL da UI do Spark"
@@ -26,6 +27,11 @@ logs:
 
 ingest-bcb:
 	docker compose exec app python -m src.ingestion.bcb_sgs
+
+# uso: make ingest-ibge ANOS="2021 2022"
+ANOS ?= 2021 2022
+ingest-ibge:
+	docker compose exec app python -m src.ingestion.ibge_sidra --anos $(ANOS)
 
 smoke:
 	docker compose exec app python -m src.smoke_test
