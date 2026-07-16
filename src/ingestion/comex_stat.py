@@ -85,20 +85,23 @@ def download_to_raw(flow: str, year: int, run_id: str) -> str:
     fonte --(16MB por vez)--> MinIO. Isso escala pra qualquer tamanho.
     """
     url = BASE_URL.format(flow=flow, year=year)
-    key = f"comex_stat/{flow}/{year}/{run_id}.csv"
+    # Prefixo "raw/" dentro do bucket único do lakehouse (settings.bucket) -
+    # não existe bucket "raw" separado no MinIO, só o "lakehouse" criado
+    # pelo minio-init (mesmo padrão de bronze_zone/silver_zone/gold_zone).
+    key = f"raw/comex_stat/{flow}/{year}/{run_id}.csv"
     s3 = _s3_client()
 
     with requests.get(url, stream=True, timeout=(30, 300)) as resp:
         resp.raise_for_status()
 
-        mpu = s3.create_multipart_upload(Bucket="raw", Key=key)
+        mpu = s3.create_multipart_upload(Bucket=settings.bucket, Key=key)
         parts, part_number, buffer = [], 1, b""
         try:
             for chunk in resp.iter_content(chunk_size=1024 * 1024):
                 buffer += chunk
                 if len(buffer) >= CHUNK_SIZE:
                     part = s3.upload_part(
-                        Bucket="raw", Key=key, UploadId=mpu["UploadId"],
+                        Bucket=settings.bucket, Key=key, UploadId=mpu["UploadId"],
                         PartNumber=part_number, Body=buffer,
                     )
                     parts.append({"ETag": part["ETag"], "PartNumber": part_number})
@@ -106,21 +109,21 @@ def download_to_raw(flow: str, year: int, run_id: str) -> str:
                     buffer = b""
             if buffer:  # última parte (multipart aceita a final < 5MB)
                 part = s3.upload_part(
-                    Bucket="raw", Key=key, UploadId=mpu["UploadId"],
+                    Bucket=settings.bucket, Key=key, UploadId=mpu["UploadId"],
                     PartNumber=part_number, Body=buffer,
                 )
                 parts.append({"ETag": part["ETag"], "PartNumber": part_number})
 
             s3.complete_multipart_upload(
-                Bucket="raw", Key=key, UploadId=mpu["UploadId"],
+                Bucket=settings.bucket, Key=key, UploadId=mpu["UploadId"],
                 MultipartUpload={"Parts": parts},
             )
         except Exception:
             # Aborta upload parcial pra não deixar lixo cobrável/órfão no storage
-            s3.abort_multipart_upload(Bucket="raw", Key=key, UploadId=mpu["UploadId"])
+            s3.abort_multipart_upload(Bucket=settings.bucket, Key=key, UploadId=mpu["UploadId"])
             raise
 
-    raw_path = f"{settings.raw_zone}/{key}"
+    raw_path = f"s3a://{settings.bucket}/{key}"
     print(f"[{flow} {year}] raw gravado: {raw_path}")
     return raw_path
 
