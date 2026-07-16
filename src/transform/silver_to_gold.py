@@ -29,6 +29,7 @@ from pyspark.sql import functions as F
 
 from src.common.config import settings
 from src.common.spark_session import get_spark
+from src.quality.expectations import expect_column_between, expect_not_null, expect_unique, run_gate
 
 COMEX_SILVER = f"{settings.silver_zone}/comex_stat"
 BCB_SILVER = f"{settings.silver_zone}/bcb_sgs"
@@ -91,6 +92,20 @@ def build_gold(spark: SparkSession) -> None:
             "pib_total_mil_reais",
             "pib_per_capita_reais",
         )
+    )
+
+    # população/PIB podem ser NULL de propósito (ano do Comex sem estimativa
+    # IBGE correspondente ainda) - por isso não gateamos essas colunas aqui,
+    # só o que a tabela promete SEMPRE ter: exportação, câmbio e o grão.
+    run_gate(
+        gold,
+        [
+            lambda d: expect_not_null(d, "exportacao_fob_usd"),
+            lambda d: expect_unique(d, ["uf", "ano"]),
+            lambda d: expect_column_between(d, "exportacao_fob_usd", min_value=0),
+            lambda d: expect_column_between(d, "cambio_medio_venda", min_value=0),
+        ],
+        stage="gold_exportacao_uf_ano",
     )
 
     (

@@ -37,6 +37,7 @@ from pyspark.sql.types import DoubleType, IntegerType, LongType
 
 from src.common.config import settings
 from src.common.spark_session import get_spark
+from src.quality.expectations import expect_column_between, expect_not_null, expect_unique, run_gate
 
 BCB_BRONZE = f"{settings.bronze_zone}/bcb_sgs"
 BCB_SILVER = f"{settings.silver_zone}/bcb_sgs"
@@ -90,6 +91,19 @@ def transform_bcb(spark: SparkSession) -> None:
     #    whenMatchedUpdateAll  -> chave já existe: atualiza (pega revisões)
     #    whenNotMatchedInsertAll -> chave nova: insere
     # ------------------------------------------------------------------
+    # Gate de qualidade - nota: "valor" é contado como inválido acima mas
+    # NÃO era descartado (só "data" era). Esse gate vira a rede de segurança
+    # que falta: se algum dia aparecer valor nulo de verdade, o job para em
+    # vez de deixar passar silencioso pra silver.
+    run_gate(
+        latest,
+        [
+            lambda d: expect_not_null(d, "valor"),
+            lambda d: expect_unique(d, ["serie", "data"]),
+        ],
+        stage="bcb_silver",
+    )
+
     if not DeltaTable.isDeltaTable(spark, BCB_SILVER):
         latest.write.format("delta").partitionBy("serie").save(BCB_SILVER)
         print(f"[bcb] silver criada: {latest.count()} linhas")
@@ -148,6 +162,16 @@ def transform_comex(spark: SparkSession, years: list[int]) -> None:
         dropped = typed.count() - valid.count()
         if dropped:
             print(f"[comex {year}] linhas descartadas por validação: {dropped}")
+
+        run_gate(
+            valid,
+            [
+                lambda d: expect_not_null(d, "vl_fob"),
+                lambda d: expect_column_between(d, "vl_fob", min_value=0),
+                lambda d: expect_column_between(d, "mes", min_value=1, max_value=12),
+            ],
+            stage=f"comex_silver_{year}",
+        )
 
         (
             valid.write.format("delta")

@@ -24,6 +24,7 @@ from pyspark.sql.types import DoubleType
 
 from src.common.config import settings
 from src.common.spark_session import get_spark
+from src.quality.expectations import expect_column_between, expect_not_null, expect_unique, run_gate
 
 IBGE_BRONZE = f"{settings.bronze_zone}/ibge_sidra"
 IBGE_SILVER = f"{settings.silver_zone}/ibge_sidra"
@@ -69,6 +70,20 @@ def transform_ibge(spark: SparkSession) -> None:
         typed.withColumn("_rn", F.row_number().over(w))
         .filter(F.col("_rn") == 1)
         .drop("_rn")
+    )
+
+    # Gate de qualidade ANTES de gravar - falha o job se o dado não bate
+    # com as garantias que a silver promete (sem isso, uma revisão futura
+    # no parsing do bronze podia furar silenciosamente e ninguém notar).
+    run_gate(
+        latest,
+        [
+            lambda d: expect_not_null(d, "valor"),
+            lambda d: expect_not_null(d, "uf"),
+            lambda d: expect_unique(d, ["dataset", "municipio_id", "ano"]),
+            lambda d: expect_column_between(d, "valor", min_value=0),
+        ],
+        stage="ibge_silver",
     )
 
     if not DeltaTable.isDeltaTable(spark, IBGE_SILVER):
