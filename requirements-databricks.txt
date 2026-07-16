@@ -1,0 +1,18 @@
+# Dependencias SO da camada de publicacao (src/publish/).
+#
+# ATENCAO - por que arquivo separado e nao no requirements.txt:
+# `databricks-connect` embute a propria distribuicao do pyspark e CONFLITA
+# com o pacote `pyspark`. Instalar os dois no mesmo ambiente quebra em
+# runtime com erro que nao aponta pra causa. Por isso:
+#
+#   - container `app`   -> requirements.txt      (pyspark local, sem isso aqui)
+#   - quem publica      -> venv separado com ESTE arquivo
+#
+# Ver docs/decisions/adr-003-databricks-portabilidade.md
+#
+#   python -m venv .venv-databricks
+#   source .venv-databricks/bin/activate
+#   pip install -r requirements-databricks.txt
+
+databricks-connect==15.4.*
+databricks-sdk==0.30.0
