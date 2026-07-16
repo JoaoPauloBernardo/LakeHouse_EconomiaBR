@@ -25,15 +25,15 @@ class Settings:
 
     # --- Camadas do lakehouse (arquitetura medallion) ---
     @property
-    def bronze(self) -> str:
+    def bronze_zone(self) -> str:
         return f"s3a://{self.bucket}/bronze"
 
     @property
-    def silver(self) -> str:
+    def silver_zone(self) -> str:
         return f"s3a://{self.bucket}/silver"
 
     @property
-    def gold(self) -> str:
+    def gold_zone(self) -> str:
         return f"s3a://{self.bucket}/gold"
 
 
