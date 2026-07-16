@@ -57,42 +57,62 @@ def main() -> None:
 
     col1, col2 = st.columns(2)
 
+    # Câmbio/população/PIB podem faltar pra um recorte de ano/UF sem ser bug
+    # (limite real da fonte - ver docstring do silver_to_gold.py). Em vez de
+    # desenhar gráfico vazio/quebrado, escondemos a seção inteira com um
+    # aviso, e a tabela bruta no fim esconde só a(s) coluna(s) sem dado.
+    tem_cambio = filtrado["cambio_medio_venda"].notna().any()
+
     with col1:
         st.subheader("Câmbio médio por ano")
-        cambio_por_ano = filtrado.drop_duplicates("ano").set_index("ano")["cambio_medio_venda"]
-        st.line_chart(cambio_por_ano.sort_index())
+        if not tem_cambio:
+            st.caption("Sem câmbio (BCB) para os anos selecionados.")
+        else:
+            cambio_por_ano = (
+                filtrado.dropna(subset=["cambio_medio_venda"])
+                .drop_duplicates("ano")
+                .set_index("ano")["cambio_medio_venda"]
+            )
+            st.line_chart(cambio_por_ano.sort_index())
 
     with col2:
         st.subheader("Exportação x câmbio médio (correlação)")
-        st.scatter_chart(filtrado, x="cambio_medio_venda", y="exportacao_fob_usd", color="uf")
-        # Câmbio médio é por ANO (não varia entre UF dentro do mesmo ano) -
-        # com 1 ano só, a "correlação" sai ~0 por falta de variância, não
-        # porque não haja relação. pd.notna() sozinho não pega esse caso
-        # (o resultado não é NaN, é só sem sentido estatístico).
-        if filtrado["ano"].nunique() < 2:
-            st.caption(
-                "Correlação indisponível: só há 1 ano nos dados filtrados "
-                "(câmbio não varia dentro de um único ano - ingira mais anos de Comex/BCB)."
-            )
+        if not tem_cambio:
+            st.caption("Sem câmbio (BCB) para os anos selecionados.")
         else:
-            correlacao = filtrado["cambio_medio_venda"].corr(filtrado["exportacao_fob_usd"])
-            if pd.notna(correlacao):
-                st.metric("Correlação (Pearson)", f"{correlacao:.3f}")
+            com_cambio = filtrado.dropna(subset=["cambio_medio_venda"])
+            st.scatter_chart(com_cambio, x="cambio_medio_venda", y="exportacao_fob_usd", color="uf")
+            # Câmbio médio é por ANO (não varia entre UF dentro do mesmo ano) -
+            # com 1 ano só, a "correlação" sai ~0 por falta de variância, não
+            # porque não haja relação. pd.notna() sozinho não pega esse caso
+            # (o resultado não é NaN, é só sem sentido estatístico).
+            if com_cambio["ano"].nunique() < 2:
+                st.caption(
+                    "Correlação indisponível: só há 1 ano com câmbio nos dados "
+                    "filtrados (câmbio não varia dentro de um único ano)."
+                )
             else:
-                st.caption("Correlação indisponível (variação insuficiente nos dados filtrados).")
+                correlacao = com_cambio["cambio_medio_venda"].corr(com_cambio["exportacao_fob_usd"])
+                if pd.notna(correlacao):
+                    st.metric("Correlação (Pearson)", f"{correlacao:.3f}")
+                else:
+                    st.caption("Correlação indisponível (variação insuficiente nos dados filtrados).")
 
     st.subheader("PIB per capita x exportação por UF")
     com_pib = filtrado.dropna(subset=["pib_per_capita_reais"])
     if com_pib.empty:
         st.caption(
-            "Sem população/PIB para os anos selecionados - o Comex tem anos que o "
-            "IBGE ainda não cobre (ex: 2023 se a última estimativa do IBGE for 2021)."
+            "Sem população/PIB para os anos selecionados - o IBGE tem hiato "
+            "de população em 2022-2023 (pós-Censo) e PIB municipal atrasa ~2 anos."
         )
     else:
         st.scatter_chart(com_pib, x="pib_per_capita_reais", y="exportacao_fob_usd", color="uf")
 
     st.subheader("Dado bruto (gold)")
-    st.dataframe(filtrado.sort_values(["ano", "exportacao_fob_usd"], ascending=[True, False]))
+    # esconde coluna 100% vazia pro recorte atual (ex: populacao some se só
+    # anos sem estimativa do IBGE estiverem selecionados)
+    tabela = filtrado.dropna(axis=1, how="all")
+    st.dataframe(tabela.sort_values(["ano", "exportacao_fob_usd"], ascending=[True, False]))
 
 
 if __name__ == "__main__":
