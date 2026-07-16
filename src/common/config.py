@@ -51,7 +51,7 @@ class Settings:
         return f"s3a://{self.bucket}/gold"
 
     @property
-    def databricks_enable(self) -> bool:
+    def databricks_enabled(self) -> bool:
         return bool(self.databricks_host)
 
 
