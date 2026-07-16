@@ -16,6 +16,7 @@ from src.common.config import settings
 # JARs que o Spark baixa sozinho na primeira execucao (cache no volume ivy):
 # - delta: formato de tabela ACID que usamos em todas as camadas
 # - hadoop-aws + aws-sdk: conector s3a:// pra falar com MinIO/S3
+# No Databricks nada disso e necessario: Delta e storage sao nativos.
 _PACKAGES = ",".join(
     [
         "io.delta:delta-spark_2.12:3.2.0",
@@ -26,6 +27,24 @@ _PACKAGES = ",".join(
 
 
 def get_spark(app_name: str | None = None) -> SparkSession:
+    """Devolve uma SparkSession pronta pro ambiente atual (RUNTIME_ENV)"""
+    if settings.runtime_env == "databricks":
+        return _build_databricks_session()
+    return _build_local_session(app_name)
+
+def _build_databricks_session(app_name: str | None = None) -> SparkSession:
+    """Sessao remota via Spark Connect.
+
+    No Databricks a plataforma ja entrega Delta + Unity Catalog + storage
+    configurados. Nao passamos NENHUMA das configs de S3A/JARs abaixo -
+    seria redundante e, no serverless, boa parte nem e suportada.
+    """
+    from databricks.connect import DatabricksSession # import local: ver docstring
+
+    return DatabricksSession.builder.getOrCreate()
+
+
+def _build_local_session(app_name: str | None = None) -> SparkSession:
     builder = (
         SparkSession.builder
         .appName(app_name or settings.app_name)
