@@ -1,6 +1,6 @@
 # Comandos do dia a dia. `make help` lista tudo.
 
-.PHONY: help up down ps logs ingest-bcb ingest-ibge smoke shell spark-ui minio-ui
+.PHONY: help up down ps logs ingest-bcb ingest-ibge smoke shell spark-ui minio-ui dashboard
 
 help:
 	@echo "make up          - sobe o ambiente (minio + spark + app)"
@@ -12,6 +12,7 @@ help:
 	@echo "make shell       - abre um bash dentro do container app"
 	@echo "make spark-ui    - lembra a URL da UI do Spark"
 	@echo "make minio-ui    - lembra a URL do console do MinIO"
+	@echo "make dashboard   - sobe o dashboard Streamlit (http://localhost:8501)"
 
 up:
 	docker compose up -d --build --scale spark-worker=2
@@ -35,6 +36,9 @@ ingest-ibge:
 
 smoke:
 	docker compose exec app python -m src.smoke_test
+
+dashboard:
+	docker compose exec app streamlit run dashboards/app.py --server.address 0.0.0.0
 
 shell:
 	docker compose exec app bash

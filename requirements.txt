@@ -11,3 +11,9 @@ tenacity==8.5.0
 # Testes
 pytest==8.2.2
 chispa==0.10.1
+
+# Dashboard - le a camada gold (pequena, ja agregada) via Spark e
+# converte pra pandas so na borda, pro Streamlit desenhar o grafico
+streamlit==1.38.0
+pandas==2.2.2
+pyarrow==17.0.0

@@ -81,9 +81,12 @@ services:
       # se quiser rodar no cluster tem que trocar pra spark://spark-master:7077
       # ou entao deixe local[*] pra rodar no proprio conteiner (client mode)
       SPARK_MASTER_URL: ${SPARK_MASTER_URL:-local[*]}
+    ports:
+      - "8501:8501" # Streamlit (dashboards/app.py)
     volumes:
       - ./src:/opt/app/src
       - ./tests:/opt/app/tests
+      - ./dashboards:/opt/app/dashboards
       - ivy-cache:/opt/ivy
     depends_on:
       - minio
