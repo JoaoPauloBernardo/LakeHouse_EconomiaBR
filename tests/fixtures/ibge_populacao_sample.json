@@ -1,0 +1,25 @@
+[
+  {
+    "id": "9324",
+    "variavel": "População residente estimada",
+    "unidade": "Pessoas",
+    "resultados": [
+      {
+        "series": [
+          {
+            "localidade": {"id": "1100015", "nome": "Alta Floresta D'Oeste - RO"},
+            "serie": {"2021": "22516"}
+          },
+          {
+            "localidade": {"id": "3550308", "nome": "São Paulo - SP"},
+            "serie": {"2021": "12396372"}
+          },
+          {
+            "localidade": {"id": "3304557", "nome": "Rio de Janeiro - RJ"},
+            "serie": {"2021": "6775561"}
+          }
+        ]
+      }
+    ]
+  }
+]
