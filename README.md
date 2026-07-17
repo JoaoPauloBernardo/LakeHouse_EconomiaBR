@@ -2,11 +2,12 @@
 
 Pipeline de dados ponta a ponta processando dados públicos da economia brasileira
 (comércio exterior, indicadores macro e demografia) com **PySpark + Delta Lake**,
-em arquitetura medallion, com testes automatizados, gates de qualidade e um
-dashboard Streamlit — portável para Databricks.
+em arquitetura medallion, orquestrado com Airflow, com testes automatizados,
+gates de qualidade e dashboard Streamlit — portável para Databricks.
 
-> Pipeline completo bronze → silver → gold, testado e com dado real de 2016-2025.
-> Falta orquestração (Airflow), tuning de performance e um ADR de qualidade de dados.
+> Pipeline completo bronze → silver → gold, orquestrado, testado e com dado
+> real de 2016-2025. Falta preencher os números do tuning e um ADR de
+> qualidade de dados.
 
 ## Arquitetura
 
@@ -32,7 +33,7 @@ flowchart LR
     GD --> DASH[Dashboard Streamlit]
     GD --> DBX[Databricks<br/>Unity Catalog]
 
-    AF[Airflow] -.orquestra, ainda não implementado.-> BR & SV & GD
+    AF[Airflow] -.orquestra.-> BR & SV & GD
 ```
 
 ## Por que essas escolhas
@@ -44,6 +45,7 @@ flowchart LR
 | **MinIO** | API idêntica ao S3, custo zero local; trocar pra S3/ADLS real é mudar 3 configs |
 | **Ingestão sem Spark** | API de poucos MB é problema de I/O; Spark entra onde há escala (Comex Stat: dezenas de milhões de linhas) |
 | **Duas estratégias de idempotência** | BCB usa `MERGE` (revisão linha a linha), Comex/IBGE usam `replaceWhere` (unidade de reprocessamento é o ano inteiro) — cada dataset pede a ferramenta certa, não uma receita única |
+| **Retry só para falha transiente** | Quality gate falha com exit code próprio; o DAG traduz em `AirflowFailException` (sem retry). Dado ruim é determinístico — tentar de novo em 10min encontra o mesmo problema |
 | **Quality gates hand-rolled** | Checks (não-nulo, duplicata, range) rodam ANTES de gravar silver/gold e falham o job de propósito — sem lib pesada (Great Expectations), só o necessário pro escopo do projeto |
 
 Decisões detalhadas em [`docs/decisions/`](docs/decisions/):
@@ -51,18 +53,29 @@ Decisões detalhadas em [`docs/decisions/`](docs/decisions/):
 [ADR-002](docs/decisions/adr-002-idempotencia.md) (MERGE vs replaceWhere) ·
 [ADR-003](docs/decisions/adr-003-databricks-portabilidade.md) (portabilidade Databricks).
 
+Metodologia e números de performance em [`docs/tuning.md`](docs/tuning.md).
+
 ## Como rodar
 
 ```bash
 cp .env.exemple .env
 make up            # sobe minio + spark (2 workers) + app
 make ingest-bcb    # ingesta séries do BCB -> bronze
-make ingest-ibge ANOS="2016 2017 2018 2019 2020 2021 2022 2023 2024 2025"
-docker compose exec app python -m src.ingestion.comex_stat --years 2016 2017 2018 2019 2020 2021 2022 2023 2024 2025 --flows EXP
-docker compose exec app python -m src.transform.bronze_to_silver --datasets bcb comex --years 2016 2017 2018 2019 2020 2021 2022 2023 2024 2025
-docker compose exec app python -m src.transform.ibge_to_silver
-docker compose exec app python -m src.transform.silver_to_gold
+make ingest-ibge  ANOS="2016 2017 2018 2019 2020 2021 2022 2023 2024 2025"
+make ingest-comex ANOS="2016 2017 2018 2019 2020 2021 2022 2023 2024 2025"
+make silver       ANOS="2016 2017 2018 2019 2020 2021 2022 2023 2024 2025"
+make gold
 make dashboard      # http://localhost:8501
+```
+
+Ou orquestrado: liga a DAG `lakehouse_pipeline` na UI do Airflow
+(`make airflow-ui`, senha do admin em `make airflow-password`).
+
+Backfill de anos anteriores — os jobs são idempotentes, então é seguro:
+
+```bash
+docker compose exec airflow airflow dags backfill \
+    -s 2020-01-01 -e 2023-12-31 lakehouse_pipeline
 ```
 
 Rodar a suíte de testes (não precisa de MinIO real — os testes redirecionam
@@ -100,6 +113,6 @@ docs/decisions/  ADRs
 - [x] Data quality gates (falham o job antes de gravar silver/gold com dado ruim)
 - [x] Dashboard Streamlit
 - [x] Portabilidade Databricks (`RUNTIME_ENV`, publish job, Unity Catalog)
+- [x] Orquestração com Airflow + backfill
 - [ ] ADR de estratégia de qualidade de dados
-- [ ] Orquestração com Airflow + backfill
-- [ ] Tuning: AQE, skew, broadcast, números antes/depois
+- [ ] Tuning: harness pronto (`make benchmark`), faltam os números medidos em [`docs/tuning.md`](docs/tuning.md)
