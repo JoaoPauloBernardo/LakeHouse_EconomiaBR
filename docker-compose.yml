@@ -95,6 +95,40 @@ services:
     #mantem o container vivo pra entrar com docker compose exec
     command: sleep infinity
 
+  # Orquestrador. Modo standalone = scheduler + webserver + SQLite num
+  # container so; suficiente pra dev. Em producao seriam servicos separados
+  # com Postgres + CeleryExecutor.
+  # UI em localhost:8081 (8080 do host ja e do Spark Master).
+  # Senha do admin sai nos logs no primeiro boot:  make airflow-password
+  airflow:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.airflow
+    container_name: airflow
+    command: standalone
+    ports:
+      - "8081:8080"
+    environment:
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+      # Mesmas envs do servico `app`: os jobs rodam aqui dentro tambem,
+      # entao precisam enxergar o MinIO e o bucket igualzinho.
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      LAKEHOUSE_BUCKET: lakehouse
+      SPARK_MASTER_URL: ${SPARK_MASTER_URL:-local[*]}
+      RUNTIME_ENV: local
+      PYTHONPATH: /opt/app
+      # Publicacao no Databricks e feature flag: vazio = task avisa e passa.
+      DATABRICKS_HOST: ${DATABRICKS_HOST:-}
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./src:/opt/app/src          # mesmo layout do container `app`
+      - ivy-cache:/opt/ivy          # reaproveita os JARs ja baixados
+    depends_on:
+      - minio
+      - spark-master
+
 volumes:
   minio-data:
   ivy-cache:
