@@ -24,12 +24,21 @@ Fontes (silver):
 """
 from __future__ import annotations
 
+import sys
+
 from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 
 from src.common.config import settings
 from src.common.spark_session import get_spark
-from src.quality.expectations import expect_column_between, expect_not_null, expect_unique, run_gate
+from src.common.exit_codes import EXIT_QUALIDADE
+from src.quality.expectations import (
+    DataQualityError,
+    expect_column_between,
+    expect_not_null,
+    expect_unique,
+    run_gate,
+)
 
 COMEX_SILVER = f"{settings.silver_zone}/comex_stat"
 BCB_SILVER = f"{settings.silver_zone}/bcb_sgs"
@@ -119,7 +128,15 @@ def build_gold(spark: SparkSession) -> None:
 
 def main() -> None:
     spark = get_spark(app_name="silver-to-gold")
-    build_gold(spark)
+
+    # Ver src/common/exit_codes.py: qualidade e falha deterministica,
+    # sai com codigo 3 pro orquestrador nao gastar retry a toa.
+    try:
+        build_gold(spark)
+    except DataQualityError as exc:
+        print(f"[FALHA DE QUALIDADE] {exc}")
+        sys.exit(EXIT_QUALIDADE)
+
     print(">>> Silver -> Gold concluído")
 
 

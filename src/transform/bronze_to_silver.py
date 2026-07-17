@@ -29,6 +29,7 @@ MERGE e replaceWhere são duas formas de alcançá-la, com custos diferentes.
 from __future__ import annotations
 
 import argparse
+import sys
 
 from delta.tables import DeltaTable
 from pyspark.sql import DataFrame, SparkSession, Window
@@ -36,7 +37,9 @@ from pyspark.sql import functions as F
 from pyspark.sql.types import DoubleType, IntegerType, LongType
 
 from src.common.config import settings
+from src.common.exit_codes import EXIT_QUALIDADE
 from src.common.spark_session import get_spark
+from src.quality.expectations import DataQualityError
 from src.quality.expectations import expect_column_between, expect_not_null, expect_unique, run_gate
 
 BCB_BRONZE = f"{settings.bronze_zone}/bcb_sgs"
@@ -194,12 +197,18 @@ def main() -> None:
 
     spark = get_spark(app_name="bronze-to-silver")
 
-    if "bcb" in args.datasets:
-        transform_bcb(spark)
-    if "comex" in args.datasets:
-        if not args.years:
-            raise SystemExit("Comex requer --years (ex: --years 2023 2024)")
-        transform_comex(spark, args.years)
+    # Falha de qualidade sai com codigo proprio: e deterministica, entao o
+    # orquestrador NAO deve tentar de novo (ver src/common/exit_codes.py).
+    try:
+        if "bcb" in args.datasets:
+            transform_bcb(spark)
+        if "comex" in args.datasets:
+            if not args.years:
+                raise SystemExit("Comex requer --years (ex: --years 2023 2024)")
+            transform_comex(spark, args.years)
+    except DataQualityError as exc:
+        print(f"[FALHA DE QUALIDADE] {exc}")
+        sys.exit(EXIT_QUALIDADE)
 
     print(">>> Bronze -> Silver concluído")
 

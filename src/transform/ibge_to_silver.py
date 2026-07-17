@@ -17,6 +17,8 @@ viram NULL no cast pra double - contamos e logamos, igual ao BCB.
 """
 from __future__ import annotations
 
+import sys
+
 from delta.tables import DeltaTable
 from pyspark.sql import SparkSession, Window
 from pyspark.sql import functions as F
@@ -24,7 +26,14 @@ from pyspark.sql.types import DoubleType
 
 from src.common.config import settings
 from src.common.spark_session import get_spark
-from src.quality.expectations import expect_column_between, expect_not_null, expect_unique, run_gate
+from src.common.exit_codes import EXIT_QUALIDADE
+from src.quality.expectations import (
+    DataQualityError,
+    expect_column_between,
+    expect_not_null,
+    expect_unique,
+    run_gate,
+)
 
 IBGE_BRONZE = f"{settings.bronze_zone}/ibge_sidra"
 IBGE_SILVER = f"{settings.silver_zone}/ibge_sidra"
@@ -107,7 +116,15 @@ def transform_ibge(spark: SparkSession) -> None:
 
 def main() -> None:
     spark = get_spark(app_name="ibge-bronze-to-silver")
-    transform_ibge(spark)
+
+    # Ver src/common/exit_codes.py: qualidade e falha deterministica,
+    # sai com codigo 3 pro orquestrador nao gastar retry a toa.
+    try:
+        transform_ibge(spark)
+    except DataQualityError as exc:
+        print(f"[FALHA DE QUALIDADE] {exc}")
+        sys.exit(EXIT_QUALIDADE)
+
     print(">>> IBGE Bronze -> Silver concluído")
 
 
